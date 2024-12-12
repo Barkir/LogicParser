@@ -189,6 +189,7 @@ Tree * TreeDump(Tree * tree, const char * FileName)
 
 char * _tex_dump_func(Tree * tree, Node ** node)
 {
+
     enum types type = NodeType(*node);
     field_t value = NodeValue(*node);
     char * oper = NULL;
@@ -211,33 +212,29 @@ char * _tex_dump_func(Tree * tree, Node ** node)
 
         case OPER:
 
-            left = _tex_dump_func(tree, &(*node)->left);
-            right = _tex_dump_func(tree, &(*node)->right);
-            char * oper = (char*) calloc(DEF_SIZE + strlen(left) + strlen(right), 1);
+            if ((*node)->left) left = _tex_dump_func(tree, &(*node)->left);
+            if ((*node)->right)right = _tex_dump_func(tree, &(*node)->right);
+            char * oper = (char*) calloc(DEF_SIZE + (left?strlen(left):10) + (right?strlen(right):10), 1);
+            if (!oper) return NULL;
 
             switch((int) value)
             {
-                case '+':   sprintf(oper, "({%s} + {%s})", left, right);
+                case '^':   sprintf(oper, "({%s} \\oplus {%s})", left, right);
                             free(left);
                             free(right);
                             return oper;
 
-                case '-':   sprintf(oper, "({%s} - {%s})", left, right);
+                case '&':   sprintf(oper, "({%s} \\wedge {%s})", left, right);
                             free(left);
                             free(right);
                             return oper;
 
-                case '*':   sprintf(oper, "({%s} \\cdot {%s})", left, right);
+                case '|':   sprintf(oper, "({%s} \\lor {%s})", left, right);
                             free(left);
                             free(right);
                             return oper;
 
-                case '^':   sprintf(oper, "{%s}^{%s}", left, right);
-                            free(left);
-                            free(right);
-                            return oper;
-
-                case '/':   sprintf(oper, "\\frac{%s}{%s}", left, right);
+                case '~':   sprintf(oper, "\\neg({%s})", left);
                             free(left);
                             free(right);
                             return oper;
@@ -736,4 +733,123 @@ Node * GetX(Node ** nodes, int * p)
     return result;
 }
 
+#define NOT _create_field((field_t) '~', OPER)
+#define AND _create_field((field_t) '&', OPER)
+#define OR _create_field((field_t) '|', OPER)
 
+Node * _dnf_or(Node * node)
+{
+    return _create_node(NOT,
+                _create_node(AND,
+                        _create_node(NOT, _copy_node(node->left), NULL),
+                        _create_node(NOT, _copy_node(node->right), NULL)), NULL);
+
+}
+
+Node * _dnf_xor(Node * node)
+{
+    return _create_node(NOT,
+                _create_node(AND,
+                        _create_node(NOT, _create_node(AND, _create_node(NOT, _copy_node(node->left), NULL), _copy_node(node->right)), NULL),
+                        _create_node(NOT, _create_node(AND, _create_node(NOT, _copy_node(node->right), NULL), _copy_node(node->left)), NULL)), NULL);
+}
+
+Node * _dnf_tree(Node * node)
+{
+
+    if (node->left) node->left = _dnf_tree(node->left);
+    if (node->right) node->right = _dnf_tree(node->right);
+
+    switch((int)NodeValue(node))
+    {
+        case '|':   return _dnf_or(node);
+        case '^':   return _dnf_xor(node);
+        default:    return node;
+
+    }
+
+    return node;
+
+}
+
+Node * _simplify_tree(Node * node)
+{
+    if (node->left) node->left = _simplify_tree(node->left);
+    if (node->right) node->right = _simplify_tree(node->right);
+
+    if ((int)NodeValue(node) == '~' && (int)NodeValue(node->left) == '~')
+    {
+        Node * toReturn = node->left->left;
+        free(node->left);
+        free(node->right);
+        return toReturn;
+    }
+
+    return node;
+}
+
+Tree * DnfTree(Tree * tree)
+{
+    Node * ret = _copy_branch(tree->root);
+    if (!ret) return NULL;
+
+    Tree * new_tree = CreateTree(tree->init, tree->cmp, tree->free);
+    if (!new_tree) return NULL;
+
+    ret = _dnf_tree(ret);
+    ret = _simplify_tree(ret);
+    new_tree->root = ret;
+
+    if (!ret) return NULL;
+    return new_tree;
+}
+
+Node * _knf_and(Node * node)
+{
+    return _create_node(NOT,
+                _create_node(OR,
+                    _create_node(NOT, _copy_node(node->left), NULL),
+                    _create_node(NOT, _copy_node(node->right), NULL)), NULL);
+}
+
+
+Node * _knf_xor(Node * node)
+{
+    return _create_node(OR,
+            _knf_and(_create_node(AND, _create_node(NOT, _copy_node(node->left), NULL), _copy_node(node->right))),
+            _knf_and(_create_node(AND, _create_node(NOT, _copy_node(node->right), NULL), _copy_node(node->left))));
+}
+
+Node * _knf_tree(Node * node)
+{
+
+    if (node->left) node->left = _knf_tree(node->left);
+    if (node->right) node->right = _knf_tree(node->right);
+
+    switch((int)NodeValue(node))
+    {
+        case '&':   return _knf_and(node);
+        case '^':   return _knf_xor(node);
+        default:    return node;
+
+    }
+
+    return node;
+
+}
+
+Tree * KnfTree(Tree * tree)
+{
+    Node * ret = _copy_branch(tree->root);
+    if (!ret) return NULL;
+
+    Tree * new_tree = CreateTree(tree->init, tree->cmp, tree->free);
+    if (!new_tree) return NULL;
+
+    ret = _knf_tree(ret);
+    ret = _simplify_tree(ret);
+    new_tree->root = ret;
+
+    if (!ret) return NULL;
+    return new_tree;
+}

@@ -35,6 +35,19 @@ int main(void)
     Tree * tree = CreateTree(FieldInit, FieldCmp, free);
     TreeParse(tree, "toparse.txt");
     TreeDump(tree, "tree");
+
+    Tree * dnf_tree = DnfTree(tree);
+    Tree * knf_tree = KnfTree(tree);
+
+    TreeDump(dnf_tree, "dnf_tree");
+    TreeDump(knf_tree, "knf_tree");
+
+    TexDump(dnf_tree, "dnf_tex");
+    TexDump(knf_tree, "knf_tex");
+    TexDump(tree, "tex");
+
+    DestroyTree(dnf_tree);
+    DestroyTree(knf_tree);
     DestroyTree(tree);
 
 }

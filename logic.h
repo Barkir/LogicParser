@@ -66,6 +66,9 @@ Tree * TreeDump(Tree * tree, const char * FileName);
 
 Tree * TexDump(Tree * tree, const char * filename);
 
+Tree * DnfTree(Tree * tree);
+Tree * KnfTree(Tree * tree);
+
 field_t CountTree(Tree * tree);
 
 void DestroyTree(Tree * t);
